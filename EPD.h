@@ -133,6 +133,12 @@ class EPD_Class
         this->frame_fixed_repeat(0xaa, EPD_compensate);
         this->frame_fixed_repeat(0xaa, EPD_white);
         this->frame_sram_repeat(new_image, EPD_inverse);
+        this->frame_sram_repeat(new_image, EPD_inverse);
+        this->frame_sram_repeat(new_image, EPD_inverse);
+        this->frame_sram_repeat(new_image, EPD_inverse);
+        this->frame_sram_repeat(new_image, EPD_normal);
+        this->frame_sram_repeat(new_image, EPD_normal);
+        this->frame_sram_repeat(new_image, EPD_normal);
         this->frame_sram_repeat(new_image, EPD_normal);
     }
 #endif
