@@ -34,7 +34,7 @@ typedef enum {
 } EPD_DIR;
 
 
-#define Pin_TEMPERATURE   A0
+#define Pin_TEMPERATURE   0xA0
 #define Pin_PANEL_ON      2
 #define Pin_BORDER        3
 #define Pin_DISCHARGE     8
@@ -46,9 +46,9 @@ typedef enum {
 
 #define Pin_SD_CS         4
 
-#define Pin_OE123         A1
-#define Pin_STV_IN        A3
-
+#define Pin_OE123         0xA1
+#define Pin_STV_IN        0xA3
+//M_CKV is connect to a optional(?) 4.41inch EPD according to the schematic i.e not connected.
 
 // spi cs
 

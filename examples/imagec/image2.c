@@ -30,15 +30,16 @@
 #error "Unknown EPB size: Change the #define SCREEN_SIZE to a supported value"
 #endif
 
-void setup()
+void setup(void)
 {
 	extern void EPAPER_init(void);
 	EPAPER_init();
+  
 	//ePaper_begin->EPD.begin->ePaper_init_io
     EPAPER.begin(EPD_SIZE);                             // setup epaper, size
 	//ePaper_start(EPD.start->EPD.setFactor)
 	//->EPD.image(frame_fixed_repeat(frame_fixed)->frame_data_repeat(frame_data))->ePaper_end
-    EPAPER.image_flash(IMAGEFILE);
+    EPAPER.image_flash(IMAGEFILE); //<<
  
 }
 

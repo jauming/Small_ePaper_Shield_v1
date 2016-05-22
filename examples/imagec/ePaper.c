@@ -25,11 +25,15 @@
 
 //#include <SPI.h>
 
+#include "gpio.h"
+#include "spi.h"
+#include "delay.h"
+
 //#include "GT20L16_drive.h"
 #include "ePaper.h"
 
 ePaper EPAPER;
-static ePaper *this=&EPAPER;
+static ePaper *this = &EPAPER;
 
 /*static void spi_on()
 {
@@ -41,14 +45,20 @@ static ePaper *this=&EPAPER;
 void ePaper_begin(EPD_size sz);
 void ePaper_init_io(void);
 void ePaper_image_flash(PROGMEM const unsigned char *image);
+void ePaper_start(void);
+void ePaper_end(void);
 
 void EPAPER_init(void)
 {
 	extern void EPD_init(void);
 	EPD_init();
-	this->begin=ePaper_begin;
-	this->init_io=ePaper_init_io;
-	this->image_flash=ePaper_image_flash;
+  
+	this->begin       = ePaper_begin;
+	this->init_io     = ePaper_init_io;
+	this->image_flash = ePaper_image_flash;
+	this->start       = ePaper_start;
+	this->end         = ePaper_end;
+  
 }
 /*********************************************************************************************************
 * \brief According to EPD size and temperature to get stage_time
@@ -126,7 +136,7 @@ void ePaper_start(void)
 ** Function name:           end
 ** Descriptions:            end
 *********************************************************************************************************/
-void ePaper_end()
+void ePaper_end(void)
 {
     EPD.end(); //hal
 }
@@ -136,32 +146,54 @@ void ePaper_end()
 ** Descriptions:            init IO
 *********************************************************************************************************/
 void ePaper_init_io(void)
-{   /*
+{   
     // init IO
-    pinMode(Pin_BUSY, INPUT);
-    pinMode(Pin_RESET, OUTPUT);
-    pinMode(Pin_PANEL_ON, OUTPUT);
-    pinMode(Pin_DISCHARGE, OUTPUT);
-    pinMode(Pin_BORDER, OUTPUT);
-    pinMode(Pin_EPD_CS, OUTPUT);
-    pinMode(Pin_SD_CS, OUTPUT);
-    
-    pinMode(9, OUTPUT);
+    pinMode(Pin_BUSY,      INPUT);  //7
+    pinMode(Pin_RESET,     OUTPUT); //6
+    pinMode(Pin_PANEL_ON,  OUTPUT); //2
+    pinMode(Pin_DISCHARGE, OUTPUT); //8
+    pinMode(Pin_BORDER,    OUTPUT); //3
+    pinMode(Pin_EPD_CS,    OUTPUT); //10
+    pinMode(Pin_SD_CS,     OUTPUT); //4
+
+    pinMode(9,      OUTPUT); //9 word_stock_cs
+	
+//test
+/*while(1)
+{ 
+	  digitalWrite(Pin_RESET,     LOW);
+    digitalWrite(Pin_PANEL_ON,  LOW);
+    digitalWrite(Pin_DISCHARGE, LOW);
+    digitalWrite(Pin_BORDER,    LOW);
+    digitalWrite(Pin_EPD_CS,    LOW); 
+    digitalWrite(Pin_SD_CS,     LOW);
+	digitalWrite(9, LOW);
+	  Delay_ms(1);
+	  digitalWrite(Pin_RESET,     HIGH);
+    digitalWrite(Pin_PANEL_ON,  HIGH);
+    digitalWrite(Pin_DISCHARGE, HIGH);
+    digitalWrite(Pin_BORDER,    HIGH);
+    digitalWrite(Pin_EPD_CS,    HIGH); 
+    digitalWrite(Pin_SD_CS,     HIGH);	
+	digitalWrite(9, HIGH);
+	  Delay_ms(1);
+}	*/
+
     digitalWrite(9, HIGH);
 
-    digitalWrite(Pin_RESET, LOW);
-    digitalWrite(Pin_PANEL_ON, LOW);
+    digitalWrite(Pin_RESET,     LOW);
+    digitalWrite(Pin_PANEL_ON,  LOW);
     digitalWrite(Pin_DISCHARGE, LOW);
-    digitalWrite(Pin_BORDER, LOW);
-    digitalWrite(Pin_EPD_CS, HIGH);
-    digitalWrite(Pin_SD_CS, HIGH);
+    digitalWrite(Pin_BORDER,    LOW);
+    digitalWrite(Pin_EPD_CS,    HIGH);
+    digitalWrite(Pin_SD_CS,     HIGH);
     
     // init SPI
     SPI.begin();
     SPI.setBitOrder(MSBFIRST);
     SPI.setDataMode(SPI_MODE0);
     //SPI.setClockDivider(SPI_CLOCK_DIV2);
-    */
+    
 }
 #if 0
 /*********************************************************************************************************

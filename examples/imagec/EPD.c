@@ -17,20 +17,25 @@
 //#include <limits.h>
 //#include <SPI.h>
 //#include <SD.h>
-
 //#include "sd_epaper.h"
+
+#include "gpio.h"
 
 #include "EPD.h"
 #include "ePaperDfs.h"
 
+#include "spi.h"
+#include "gpio.h"
+#include "delay.h"
+#include "pwm.h"
+
 // delays - more consistent naming
-#define Delay_ms(ms) delay(ms)
+//#define Delay_ms(ms) delay(ms)
 #define Delay_us(us) delayMicroseconds(us)
 
 // inline arrays
 #define ARRAY(type, ...) ((type[]){__VA_ARGS__})
 #define CU8(...) (ARRAY(const uint8_t, __VA_ARGS__))
-
 
 static void PWM_start(int pin);
 static void PWM_stop(int pin);
@@ -38,22 +43,32 @@ static void PWM_stop(int pin);
 static void SPI_put(uint8_t c);
 static void SPI_put_wait(uint8_t c, int busy_pin);
 static void SPI_send(uint8_t cs_pin, const uint8_t *buffer, uint16_t length);
+
 static void SPI_on(void);
 static void SPI_off(void);
 static void SPI_off_final(void);
 
-
 EPD_Class EPD;
-static EPD_Class* this=&EPD;
+static EPD_Class *this = &EPD;
 
 void EPD_Class_begin(EPD_size sz);
-void EPD_Class_start(void) ;
+void EPD_Class_start(void);
 void EPD_Class_setFactor(int temperature);
-void EPD_Class_end(void) ;
+void EPD_Class_end(void);
 void EPD_Class_image(PROGMEM const uint8_t *image);
+void EPD_Class_line(uint16_t line, const uint8_t *data, uint8_t fixed_value, _bool read_progmem, EPD_stage stage);
+void EPD_Class_frame_fixed(uint8_t fixed_value, EPD_stage stage); 
+void EPD_Class_frame_data(PROGMEM const uint8_t *image, EPD_stage stage);
+int EPD_Class_temperature_to_factor_10x(int temperature);	
 
+void delayMicroseconds(int us)
+{
+  
+  Delayus(us);
+}
 void EPD_init(void)
 {
+  extern void spi_init(void);
 	/*
 	  void (*begin)(EPD_size sz);
     void (*start)();
@@ -61,11 +76,22 @@ void EPD_init(void)
 	  void (*setFactor)(int temperature);// = 25);
 	  void (*image)(PROGMEM const uint8_t *image);
 	*/
-	this->begin=EPD_Class_begin;
-	this->start=EPD_Class_start;
-	this->end=EPD_Class_end;
-	this->setFactor=EPD_Class_setFactor;
-	this->image=EPD_Class_image;
+	this->begin       = EPD_Class_begin;
+	this->start       = EPD_Class_start;
+	this->end         = EPD_Class_end;
+	this->setFactor   = EPD_Class_setFactor;
+	this->image       = EPD_Class_image;
+	this->line        = EPD_Class_line;
+	this->frame_fixed = EPD_Class_frame_fixed;
+	this->frame_data  = EPD_Class_frame_data;
+	
+	this->frame_fixed_repeat = EPD_Class_frame_fixed;
+	this->frame_data_repeat  = EPD_Class_frame_data;
+	
+	this->temperature_to_factor_10x = EPD_Class_temperature_to_factor_10x;
+	
+  spi_init();
+  delay_init();
 }
 
 void EPD_Class_setFactor(int temperature){// = 25) {
@@ -97,13 +123,13 @@ void EPD_Class_begin(EPD_size sz)
 	this->EPD_Pin_RESET       = Pin_RESET;
 	this->EPD_Pin_BUSY        = Pin_BUSY;
 
-	this->size = sz;
-	this->stage_time = 480; // milliseconds
+	this->size              = sz;
+	this->stage_time        = 480; // milliseconds
 	this->lines_per_display = 96;
-	this->dots_per_line = 128;
-	this->bytes_per_line = 128 / 8;
-	this->bytes_per_scan = 96 / 4;
-	this->filler = false;
+	this->dots_per_line     = 128;
+	this->bytes_per_line    = 128 / 8;
+	this->bytes_per_scan    = 96 / 4;
+	this->filler            = false;
 
 
 	// display size dependant items
@@ -112,46 +138,46 @@ void EPD_Class_begin(EPD_size sz)
 		static uint8_t gs[] = {0x72, 0x03};
 		this->channel_select = cs;
 		this->channel_select_length = sizeof(cs);
-		this->gate_source = gs;
+		this->gate_source    = gs;
 		this->gate_source_length = sizeof(gs);
 	}
 
 	// set up size structure
 	switch (this->size) {
-	default:
-	case EPD_1_44:  // default so no change
-		break;
-
-	case EPD_2_0: {
-		this->lines_per_display = 96;
-		this->dots_per_line = 200;
-		this->bytes_per_line = 200 / 8;
-		this->bytes_per_scan = 96 / 4;
-		this->filler = true;
-		static uint8_t cs[] = {0x72, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xe0, 0x00};
-		static uint8_t gs[] = {0x72, 0x03};
-		this->channel_select = cs;
-		this->channel_select_length = sizeof(cs);
-		this->gate_source = gs;
-		this->gate_source_length = sizeof(gs);
-		break;
-	}
-
-	case EPD_2_7: {
-		this->stage_time = 630; // milliseconds
-		this->lines_per_display = 176;
-		this->dots_per_line = 264;
-		this->bytes_per_line = 264 / 8;
-		this->bytes_per_scan = 176 / 4;
-		this->filler = true;
-		static uint8_t cs[] = {0x72, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xfe, 0x00, 0x00};
-		static uint8_t gs[] = {0x72, 0x00};
-		this->channel_select = cs;
-		this->channel_select_length = sizeof(cs);
-		this->gate_source = gs;
-		this->gate_source_length = sizeof(gs);
-		break;
-	}
+  	default:
+  	case EPD_1_44:  // default so no change
+  		break;
+  
+  	case EPD_2_0: {
+  		this->lines_per_display = 96;
+  		this->dots_per_line     = 200;
+  		this->bytes_per_line    = 200 / 8;
+  		this->bytes_per_scan    = 96 / 4;
+  		this->filler = true;
+  		static uint8_t cs[] = {0x72, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xe0, 0x00};
+  		static uint8_t gs[] = {0x72, 0x03};
+  		this->channel_select = cs;
+  		this->channel_select_length = sizeof(cs);
+  		this->gate_source = gs;
+  		this->gate_source_length = sizeof(gs);
+  		break;
+  	}
+  
+  	case EPD_2_7: {
+  		this->stage_time        = 630; // milliseconds
+  		this->lines_per_display = 176;
+  		this->dots_per_line     = 264;
+  		this->bytes_per_line    = 264 / 8;
+  		this->bytes_per_scan    = 176 / 4;
+  		this->filler = true;
+  		static uint8_t cs[] = {0x72, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xfe, 0x00, 0x00};
+  		static uint8_t gs[] = {0x72, 0x00};
+  		this->channel_select = cs;
+  		this->channel_select_length = sizeof(cs);
+  		this->gate_source    = gs;
+  		this->gate_source_length = sizeof(gs);
+  		break;
+  	}
 	}
 
 	this->factored_stage_time = this->stage_time;
@@ -159,7 +185,7 @@ void EPD_Class_begin(EPD_size sz)
 
 
 void EPD_Class_start(void) {
-/*
+
 	// power up sequence
 	//SPI_put(0x00);
 
@@ -277,13 +303,13 @@ void EPD_Class_start(void) {
 	SPI_send(this->EPD_Pin_EPD_CS, CU8(0x72, 0x24), 2);
     
     SPI_off();
-*/    
+    
 }
 
 
 void EPD_Class_end(void) 
 {
-/*
+
 	// dummy frame
 	//this->frame_fixed(0x55, EPD_normal);
 	// dummy line and border
@@ -373,7 +399,7 @@ void EPD_Class_end(void)
 	// turn of power and all signals
     //
 
-    delay(10);
+    Delay_ms(10);
 	digitalWrite(this->EPD_Pin_RESET, LOW);
 	digitalWrite(this->EPD_Pin_PANEL_ON, LOW);
 	digitalWrite(this->EPD_Pin_BORDER, LOW);
@@ -386,8 +412,8 @@ void EPD_Class_end(void)
 	Delay_ms(250);
 	digitalWrite(this->EPD_Pin_DISCHARGE, LOW);
     
-    digitalWrite(EPD_Pin_EPD_CS, HIGH);
-*/
+    digitalWrite(this->EPD_Pin_EPD_CS, HIGH);
+
 }
 
 
@@ -421,8 +447,10 @@ int EPD_Class_temperature_to_factor_10x(int temperature)
 
 // the image is arranged by line which matches the display size
 // so smallest would have 96 * 32 bytes
-/*
-void EPD_Class::frame_fixed(uint8_t fixed_value, EPD_stage stage) 
+
+//void EPD_Class::line(uint16_t line, const uint8_t *data, uint8_t fixed_value, bool read_progmem, EPD_stage stage)
+
+void EPD_Class_frame_fixed(uint8_t fixed_value, EPD_stage stage) 
 {
 	for (uint8_t line = 0; line < this->lines_per_display ; ++line) 
     {
@@ -430,14 +458,14 @@ void EPD_Class::frame_fixed(uint8_t fixed_value, EPD_stage stage)
 	}
 }
 
-void EPD_Class::frame_data(PROGMEM const uint8_t *image, EPD_stage stage)
+void EPD_Class_frame_data(PROGMEM const uint8_t *image, EPD_stage stage)
 {
 	for (uint8_t line = 0; line < this->lines_per_display ; ++line) 
     {
 		this->line(line, &image[line * this->bytes_per_line], 0, true, stage);
 	}
 }
-
+/*
 #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega328P__)
 void EPD_Class::frame_data_sd(EPD_stage stage)
 {
@@ -470,11 +498,7 @@ void EPD_Class::frame_cb(uint32_t address, EPD_reader *reader, EPD_stage stage) 
 }
 
 */
-unsigned long millis(void)
-{//return current millis
-	extern uint32_t GetTicks(void);
-	return GetTicks();
-}
+
 void EPD_Class_frame_fixed_repeat(uint8_t fixed_value, EPD_stage stage) 
 {
 	#define ULONG_MAX 0xffffffffUL
@@ -578,8 +602,8 @@ void EPD_Class::frame_cb_repeat(uint32_t address, EPD_reader *reader, EPD_stage 
 	} while (stage_time > 0);
 }
 
-
-void EPD_Class::line(uint16_t line, const uint8_t *data, uint8_t fixed_value, bool read_progmem, EPD_stage stage) 
+*/
+void EPD_Class_line(uint16_t line, const uint8_t *data, uint8_t fixed_value, _bool read_progmem, EPD_stage stage) 
 {
 	// charge pump voltage levels
     SPI_on();
@@ -605,12 +629,13 @@ void EPD_Class::line(uint16_t line, const uint8_t *data, uint8_t fixed_value, bo
 
 			// AVR has multiple memory spaces
 			uint8_t pixels;
-			if (read_progmem) 
-            {
-				pixels = pgm_read_byte_near(data + b - 1) & 0xaa;
+			if (read_progmem) //const data in flash
+      {
+				//pixels = pgm_read_byte_near(data + b - 1) & 0xaa; //const data in flash
+				pixels = data[b - 1] & 0xaa;
 			} 
-            else 
-            {
+      else 
+      {
 				pixels = data[b - 1] & 0xaa;
 			}
             
@@ -663,11 +688,12 @@ void EPD_Class::line(uint16_t line, const uint8_t *data, uint8_t fixed_value, bo
         {
 			// AVR has multiple memory spaces
 			uint8_t pixels;
-			if (read_progmem) 
-            {
-				pixels = pgm_read_byte_near(data + b) & 0x55;
+			if (read_progmem) //const data in flash
+      {
+				//pixels = pgm_read_byte_near(data + b) & 0x55; //const data in flash
+				pixels = data[b] & 0x55;
 			} else 
-            {
+      {
 				pixels = data[b] & 0x55;
 			}
             
@@ -716,6 +742,7 @@ void EPD_Class::line(uint16_t line, const uint8_t *data, uint8_t fixed_value, bo
     SPI_off();    
 }
 
+/*
 #if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega328P__)
 void EPD_Class::line_sd(uint16_t line, const uint8_t *data, uint8_t fixed_value, bool read_progmem, EPD_stage stage) 
 {
@@ -858,7 +885,7 @@ void EPD_Class::line_sd(uint16_t line, const uint8_t *data, uint8_t fixed_value,
 
 #endif
 */
-/*
+
 static void SPI_on() {
     SPI.end();
     SPI.begin();
@@ -917,7 +944,6 @@ static void SPI_put_wait(uint8_t c, int busy_pin) {
 
 }
 
-
 static void SPI_send(uint8_t cs_pin, const uint8_t *buffer, uint16_t length) {
 	// CS low
 	digitalWrite(cs_pin, LOW);
@@ -930,15 +956,17 @@ static void SPI_send(uint8_t cs_pin, const uint8_t *buffer, uint16_t length) {
 	// CS high
 	digitalWrite(cs_pin, HIGH);
 }
-*/
+
 
 static void PWM_start(int pin) {
 	//analogWrite(pin, 128);  // 50% duty cycle
+  pwm_init();
 }
 
 
 static void PWM_stop(int pin) {
 	//analogWrite(pin, 0);
+  pwm_deinit();
 }
 
 

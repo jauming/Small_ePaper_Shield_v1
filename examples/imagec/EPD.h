@@ -49,6 +49,7 @@ typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
 typedef unsigned char _bool;
+
 typedef void EPD_reader(void *buffer, uint32_t address, uint16_t length);
 
 //class EPD_Class
@@ -183,13 +184,14 @@ typedef struct EPD_Class_t
 
     // single line display - very low-level
     // also has to handle AVR progmem
-    //void line(uint16_t line, const uint8_t *data, uint8_t fixed_value, bool read_progmem, EPD_stage stage);
+    void (*line)(uint16_t line, const uint8_t *data, uint8_t fixed_value, _bool read_progmem, EPD_stage stage);
 /*#if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega328P__)
     void line_sd(uint16_t line, const uint8_t *data, uint8_t fixed_value, bool read_progmem, EPD_stage stage);
 #endif*/
 } EPD_Class;               
-
 extern EPD_Class EPD;
+ 
+
 
 #endif
 
