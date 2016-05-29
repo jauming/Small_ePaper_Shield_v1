@@ -151,6 +151,9 @@ static void GPIO_PinInit2(GPIO_Type *base, uint32_t pin, gpio_pin_direction_t pi
 		if (pinDirection == kGPIO_DigitalInput)
     {
         base->PDDR &= ~(1U << pin);
+        
+
+
     }
     else
     {
@@ -176,6 +179,23 @@ void pinMode(uint8_t idx, uint8_t pinDirection)
   {
     PORT_SetPinMux(idx2port[idx], idx2pin[idx], kPORT_MuxAsGpio); //<chk
     GPIO_PinInit2(idx2gpio[idx], idx2pin[idx],(gpio_pin_direction_t) pinDirection, 0);
+    if (pinDirection == kGPIO_DigitalInput)
+    {
+      /* Input pin PORT configuration */
+      port_pin_config_t config = {
+          kPORT_PullUp, //kPORT_PullDown
+          kPORT_FastSlewRate,
+          kPORT_PassiveFilterDisable,
+          kPORT_OpenDrainDisable,
+          kPORT_LowDriveStrength,
+          kPORT_MuxAsGpio,
+         
+          0,//kPORT_UnLockRegister,
+      
+      };
+      /*  Sets the configuration */
+      PORT_SetPinConfig(idx2port[idx]/*PORTC*/, idx2pin[idx]/*5*/, &config);    
+    }
   }
   else if ((idx >= 0x10) && (idx < 0xa0)) 
   {
